@@ -1,214 +1,55 @@
-/* globals WebSocket */
-
 import { h, render, Component } from 'preact';
+import SqliteProxy from './sqlite-proxy';
 
-class PreparedStatement {
-  constructor (db, query) {
-    this.db = db;
-    this.query = query;
-    this.commands = [];
-  }
+import Todo from './components/todo';
+import CreateTodo from './components/create-todo';
 
-  push (command) {
-    this.commands.push(command);
-  }
-
-  run (a) {
-    this.push({
-      query: this.query,
-      arguments: [a]
-    });
-  }
-
-  finalize (callback) {
-    this.db.concat(this.commands, callback);
-  }
-}
-
-class SqliteProxy {
-  constructor () {
-    this.id = 0;
-    this.packets = [];
-
-    this.ws = new WebSocket('ws://localhost:4100/api/storage/sqlite', 'appbox');
-    this.ws.onopen = this.onOpen.bind(this);
-    this.ws.onmessage = this.onMessage.bind(this);
-  }
-
-  get connected () {
-    return this.ws.readyState === 1;
-  }
-
-  onOpen () {
-    this.flush();
-  }
-
-  flush () {
-    this.packets.forEach((c) => {
-      this.send(c);
-    });
-  }
-
-  send (packet) {
-    var message = Object.assign({}, packet);
-
-    if (packet.callback) {
-      message.callback = true;
-    } else {
-      delete message.callback;
-    }
-
-    this.ws.send(JSON.stringify(message));
-  }
-
-  getPacketById (id) {
-    return this.packets.filter((p) => p.id === id)[0];
-  }
-
-  onMessage (event) {
-    const packet = JSON.parse(event.data);
-
-    if (packet.id) {
-      const ourPacket = this.getPacketById(packet.id);
-
-      if (ourPacket) {
-        ourPacket.callback(packet.err, packet.row);
-      }
-    }
-  }
-
-  serialize (callback) {
-    // fixme
-    callback();
-  }
-
-  push (command, query, callback) {
-    this.id++;
-
-    const packet = {
-      id: this.id,
-      command: command,
-      query: query,
-      callback: callback
-    };
-
-    if (this.connected) {
-      this.send(packet);
-    }
-
-    this.packets.push(packet);
-  }
-
-  concat (commands, callback) {
-    commands.forEach((c) => {
-      this.push('run', c);
-    });
-
-    // Gross
-    this.push('run', 'select true', callback);
-  }
-
-  run (query, params, callback) {
-    if (typeof params === 'function') {
-      callback = params;
-      params = [];
-    }
-
-    this.push('run', { query: query, arguments: params }, callback);
-  }
-
-  each (query, params, callback) {
-    if (typeof params === 'function') {
-      callback = params;
-      params = [];
-    }
-
-    this.push('each', { query: query, arguments: params }, callback);
-  }
-
-  prepare (query) {
-    return new PreparedStatement(this, query);
-  }
-
-  close () {
-    console.log(JSON.stringify(this.commands));
-  }
-}
-
-const db = new SqliteProxy();
+const app = {
+  name: 'todo'
+};
+const db = new SqliteProxy(app);
 
 // Tell Babel to transform JSX into h() calls:
 /** @jsx h */
 
-class CreateTodo extends Component {
+class App extends Component {
   constructor () {
     super();
 
-    this.state.text = '';
-  }
-
-  save () {
-    this.props.onCreate({
-      text: this.state.text
-    });
-  }
-
-  render () {
-    return (
-      <div>
-        <textarea
-          value={this.state.text}
-          onChange={(e) => this.setState({text: e.target.value})}
-        />
-        <button
-          onClick={(e) => this.save()}
-        />
-      </div>
-    );
-  }
-}
-
-class Todo extends Component {
-  constructor () {
-    super();
-  }
-
-  delete () {
-    this.props.onDelete();
-  }
-
-  render () {
-    return (
-      <div>
-        <p>{this.props.todo.info}</p>
-        <button onClick={(e) => this.delete()}>Delete</button>
-      </div>
-    );
-  }
-}
-class Clock extends Component {
-  constructor () {
-    super();
+    // Loading state
+    this.state.todos = [];
 
     // Create database
     this.initialize();
+  }
 
-    this.state.todos = [];
+  componentDidMount () {
+    // Load the styles into the <head /> using node-lessify
+    require('./css/mui.css');
+    require('./css/style.less');
+
+    // Set viewport meta tag
+    document.head.innerHTML += '<meta name="viewport" content="width=device-width, initial-scale=1">';
   }
 
   initialize () {
     if (false) {
-      db.serialize(() => {
-        db.run('CREATE TABLE lorem (info TEXT)');
-        db.run('DELETE FROM lorem');
-
-        var stmt = db.prepare('INSERT INTO lorem VALUES (?)');
-        for (var i = 0; i < 10; i++) {
-          stmt.run('Ipsum ' + i);
+      db.run('CREATE TABLE todos (done INT, content TEXT)', (err) => {
+        if (err) {
+          console.error(err);
         }
 
-        stmt.finalize(() => this.reload());
+        this.reload();
       });
+
+      // db.run('DELETE FROM todos')
+
+      // var stmt = db.prepare('INSERT INTO lorem VALUES (?)');
+      // for (var i = 0; i < 10; i++) {
+      //   stmt.run('Ipsum ' + i);
+      // }
+
+      // stmt.finalize(() => this.reload());
     }
 
     this.reload();
@@ -219,10 +60,12 @@ class Clock extends Component {
       todos: []
     });
 
-    db.each('SELECT rowid AS id, info FROM lorem', (err, row) => {
+    db.each('SELECT rowid AS id, done, content FROM todos ORDER BY done ASC, rowid DESC', (err, row) => {
       if (err) {
         throw err;
       }
+
+      console.log(row);
 
       this.setState({
         todos: this.state.todos.concat(row)
@@ -233,29 +76,60 @@ class Clock extends Component {
   }
 
   onCreate (todo) {
-    db.run('INSERT INTO lorem VALUES (?)', todo.text, () => {
+    db.run('INSERT INTO todos VALUES (?, ?)', [0, todo.content], () => {
       this.reload();
     });
   }
 
   onDelete (todo) {
-    db.run('DELETE FROM lorem where rowid=?', todo.id, () => {
+    db.run('DELETE FROM todos where rowid=?', todo.id, () => {
+      this.reload();
+    });
+  }
+
+  onDone (todo) {
+    db.run('UPDATE todos SET done=1 WHERE rowid=?', todo.id, () => {
       this.reload();
     });
   }
 
   render (props, state) {
     let todos = this.state.todos.map((t) => {
-      return <Todo onDelete={() => this.onDelete(t)} todo={t} />;
+      return (
+        <Todo 
+          onDone={() => this.onDone(t)}
+          onDelete={() => this.onDelete(t)}
+          todo={t} 
+        />
+      );;
     });
 
-    return (<div>
-      <CreateTodo onCreate={(todo) => this.onCreate(todo)} />
+    return (
+      <div>
+        <div className='mui-appbar'>
+          <h1>Todo</h1>
+        </div>
 
-      <ul>{todos}</ul>
-    </div>);
+        <br />
+
+        <div className='mui-container'>
+          <CreateTodo onCreate={(todo) => this.onCreate(todo)} />
+
+          <div className='mui-panel'>
+            <table className='todo-list mui-table mui-table--bordered'>
+              <thead>
+                <th colSpan='3'>Todo</th>
+              </thead>
+              <tbody>
+                {todos}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
   }
 }
 
-// render an instance of Clock into <body>:
-render(<Clock />, document.body);
+// render an instance of the app into <body>:
+render(<App />, document.body);

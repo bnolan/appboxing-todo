@@ -1,0 +1,43 @@
+body{
+  background: #eee;
+}
+
+h1{
+  margin: 0;
+  padding: 16px;
+  text-align: center;
+  font-size: 1.2em;
+}
+
+.todo-list{
+  border-collapse: collapse;
+
+  .done td{
+    text-decoration: line-through;
+    color: #aaa;
+
+    input{
+      opacity: 0.5;
+    }
+    span{
+      display: none;
+    }
+  }
+
+  .delete-button{
+    cursor: pointer;
+  }
+
+  td:first-child{
+    width: 24px;
+  }
+
+  td:last-child{
+    width: 64px;
+    text-align: right;
+  }
+
+  tr:last-child td{
+    border-bottom: none !important;
+  }
+}

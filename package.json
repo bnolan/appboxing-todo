@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "budo index.js --  -t [ babelify --presets [ es2015 react ] ]",
+    "start": "budo index.js -- -t node-lessify -t [ babelify --presets [ es2015 react ] ]",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
@@ -15,6 +15,7 @@
     "babelify": "^7.3.0"
   },
   "dependencies": {
+    "node-lessify": "^0.1.4",
     "preact": "^6.4.0"
   }
 }
