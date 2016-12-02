@@ -65,14 +65,10 @@ class App extends Component {
         throw err;
       }
 
-      console.log(row);
-
       this.setState({
         todos: this.state.todos.concat(row)
       });
     });
-
-    db.close();
   }
 
   onCreate (todo) {
@@ -93,11 +89,18 @@ class App extends Component {
     });
   }
 
+  onUndo (todo) {
+    db.run('UPDATE todos SET done=0 WHERE rowid=?', todo.id, () => {
+      this.reload();
+    });
+  }
+
   render (props, state) {
     let todos = this.state.todos.map((t) => {
       return (
         <Todo 
           onDone={() => this.onDone(t)}
+          onUndo={() => this.onUndo(t)}
           onDelete={() => this.onDelete(t)}
           todo={t} 
         />

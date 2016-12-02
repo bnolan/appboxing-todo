@@ -31,7 +31,7 @@ export default class SqliteProxy {
     this.packets = [];
     this.app = app;
 
-    this.ws = new WebSocket('ws://192.168.1.6:4100/api/storage/sqlite', 'appbox');
+    this.ws = new WebSocket('ws://localhost:4100/api/storage/sqlite', 'appbox');
     this.ws.onopen = this.onOpen.bind(this);
     this.ws.onmessage = this.onMessage.bind(this);
   }
